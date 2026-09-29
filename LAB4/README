@@ -1,0 +1,60 @@
+# BÁO CÁO THỰC HÀNH AN TOÀN HỆ THỐNG THÔNG TIN
+## BÀI THỰC HÀNH LAB 4: KHẢO SÁT VÀ ĐÁNH GIÁ BỀ MẶT MẠNG BẰNG NMAP
+
+### 1. Thông tin sinh viên
+- **Họ và tên:** Nguyễn Quang Mẫn
+- **MSSV:** 1150080065
+- **Lớp:** 11_THMT
+- **Link Video thực hành (YouTube):** [DÁN ĐƯỜNG DẪN LINK YOUTUBE CỦA BẠN VÀO ĐÂY]
+
+---
+
+### 2. Thông tin môi trường thực hành
+- **Máy thật (Host):** Microsoft Windows 11 Pro 64-bit [Version 10.0.26200.9457]
+  - IP VirtualBox Host-Only Adapter: `192.168.56.1/24`
+  - Phiên bản công cụ: Nmap 7.991, Npcap 1.89
+- **Nền tảng ảo hóa:** Oracle VM VirtualBox
+- **Máy quét (Scanner):** Kali Linux 2026.2 (64-bit)
+  - IP Host-Only: `192.168.56.102/24`
+  - Nmap Version: 7.99
+- **Máy mục tiêu (Target):** Metasploitable 2
+  - Hệ điều hành: Linux metasploitable 2.6.24-16-server
+  - IP Host-Only: `192.168.56.101/24`
+  - Địa chỉ MAC: `08:00:27:05:FA:BD`
+
+---
+
+### 3. Cách thức dựng môi trường
+1. Khởi tạo card mạng **VirtualBox Host-Only Ethernet Adapter** với dải mạng `192.168.56.0/24` và bật dịch vụ cấp phát IP tự động (DHCP Server).
+2. Cấu hình phần cứng:
+   - Gán `Adapter 1` của máy ảo Kali Linux sang chế độ `Host-only Adapter` trỏ tới card trên.
+   - Thêm máy ảo Metasploitable 2 sử dụng ổ đĩa cứng ảo có sẵn (`Metasploitable.vmdk`), phân bổ 1 GB RAM, cấu hình `Adapter 1` sang chế độ `Host-only Adapter`.
+3. Khởi động 2 máy ảo, ngắt các adapter NAT bên ngoài để đảm bảo tính độc lập và an toàn cho bài lab.
+4. Kiểm tra thông tuyến mạng giữa hai máy thành công bằng lệnh: `ping -c 4 192.168.56.101`.
+
+---
+
+### 4. Tóm tắt các tình huống thực hiện và kết quả
+| STT | Kịch bản / Kỹ thuật thực hiện | Lệnh thực thi chính | Kết quả |
+| :-- | :---------------------------- | :------------------ | :------ |
+| 1 | Dò tìm các host đang sống (Host Discovery) | `sudo nmap -sn 192.168.56.0/24` | **PASS** (Tìm thấy 4 host: .1, .100, .101, .102) |
+| 2 | Khảo sát cổng TCP Connect scan (`-sT`) | `nmap -sT 192.168.56.101` | **PASS** (Phát hiện 23 cổng open) |
+| 3 | Khảo sát cổng TCP SYN scan (`-sS`) | `sudo nmap -sS 192.168.56.101` | **PASS** (Phát hiện 23 cổng open) |
+| 4 | Quét các cờ TCP nâng cao | `sudo nmap -sF/-sX/-sN 192.168.56.101` | **PASS** (Trạng thái `open\|filtered`) |
+| 5 | Khảo sát chính sách lọc tường lửa | `sudo nmap -sA 192.168.56.101` | **PASS** (Trạng thái `unfiltered`) |
+| 6 | Quét nhóm cổng UDP thông dụng | `sudo nmap -sU --top-ports 20 192.168.56.101` | **PASS** (Phát hiện cổng 53, 137 open) |
+| 7 | Nhận diện phiên bản dịch vụ (`-sV`) | `sudo nmap -sV 192.168.56.101` | **PASS** (Nhận diện Apache 2.2.8, vsftpd 2.3.4,...) |
+| 8 | Nhận diện hệ điều hành (`-O`, `-A`) | `sudo nmap -O/-A 192.168.56.101` | **PASS** (Linux 2.6.X, thu thập banner) |
+| 9 | Kiểm tra thông tin SMB qua kịch bản NSE | `sudo nmap -p 445 --script smb-os-discovery...` | **PASS** (Lấy tên máy `metasploitable`, domain) |
+| 10 | Xuất báo cáo đa định dạng | `-oN ketqua.txt`, `-oX ketqua.xml`, `xsltproc` | **PASS** (Tạo tệp XML và giao diện HTML) |
+| 11 | Đánh giá trước/sau Hardening | Tắt Apache2 trên máy đích và quét so sánh | **PASS** (Cổng 80 chuyển từ `open` sang `closed`) |
+
+---
+
+### 5. Sự cố gặp phải và biện pháp khắc phục
+1. **Sự cố dải mạng không đồng nhất:** Ban đầu VirtualBox tồn tại hai card Host-Only (Adapter #1 dải `192.168.56.x` và Adapter #2 dải `192.168.209.x`), dẫn đến nguy cơ các máy không nhìn thấy nhau.
+   - *Khắc phục:* Gán chính xác cả hai máy ảo về chung card `VirtualBox Host-Only Ethernet Adapter` (`192.168.56.1/24`).
+2. **Lỗi quyền truy cập khi quét SYN:** Khi chạy `nmap -sS` bằng người dùng tiêu chuẩn, hệ thống báo lỗi không thể tạo raw socket.
+   - *Khắc phục:* Bổ sung tiền tố `sudo` để thực thi dưới quyền quản trị hệ thống.
+3. **Lệnh trích xuất Grepable báo lỗi file:** Khi chạy lọc `grep "445/open" smb.txt` báo không tìm thấy tệp do chưa xuất file trước.
+   - *Khắc phục:* Thực thi lệnh quét xuất định dạng `-oG smb.txt` trước khi thực hiện pipe/grep lọc kết quả.
